@@ -654,6 +654,9 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_s(sesskey, "X11Display", conf_get_str(conf, CONF_x11_display));
     write_setting_i(sesskey, "X11AuthType", conf_get_int(conf, CONF_x11_auth));
     write_setting_filename(sesskey, "X11AuthFile", conf_get_filename(conf, CONF_xauthfile));
+    write_setting_i(sesskey, "PKCS11Forward", conf_get_int(conf, CONF_pkcs11_forward));
+    write_setting_s(sesskey, "PKCS11URL", conf_get_str(conf, CONF_pkcs11_url));
+    write_setting_s(sesskey, "PKCS11Socket", conf_get_str(conf, CONF_pkcs11_socket));
     write_setting_i(sesskey, "LocalPortAcceptAll", conf_get_int(conf, CONF_lport_acceptall));
     write_setting_i(sesskey, "RemotePortAcceptAll", conf_get_int(conf, CONF_rport_acceptall));
     wmap(sesskey, "PortForwardings", conf, CONF_portfwd, TRUE);
@@ -1078,6 +1081,9 @@ void load_open_settings(void *sesskey, Conf *conf)
     gpps(sesskey, "X11Display", "", conf, CONF_x11_display);
     gppi(sesskey, "X11AuthType", X11_MIT, conf, CONF_x11_auth);
     gppfile(sesskey, "X11AuthFile", conf, CONF_xauthfile);
+    gppi(sesskey, "PKCS11Forward", 0, conf, CONF_pkcs11_forward);
+    gpps(sesskey, "PKCS11URL", "", conf, CONF_pkcs11_url);
+    gpps(sesskey, "PKCS11Socket", "", conf, CONF_pkcs11_socket);
 
     gppi(sesskey, "LocalPortAcceptAll", 0, conf, CONF_lport_acceptall);
     gppi(sesskey, "RemotePortAcceptAll", 0, conf, CONF_rport_acceptall);

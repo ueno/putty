@@ -1016,6 +1016,48 @@ Socket sk_newlistener(const char *srcaddr, int port, Plug plug,
     return (Socket) ret;
 }
 
+Socket sk_spawn(int argc, char **argv, int oobinline,
+		int nodelay, int keepalive, Plug plug)
+{
+    Actual_Socket ret;
+    int err;
+
+    /*
+     * Create Socket structure.
+     */
+    ret = snew(struct Socket_tag);
+    ret->fn = &tcp_fn_table;
+    ret->error = NULL;
+    ret->plug = plug;
+    bufchain_init(&ret->output_data);
+    ret->connected = 0;		       /* to start with */
+    ret->writable = 0;		       /* to start with */
+    ret->sending_oob = 0;
+    ret->frozen = 0;
+    ret->localhost_only = 0;	       /* unused, but best init anyway */
+    ret->pending_error = 0;
+    ret->parent = ret->child = NULL;
+    ret->oobpending = FALSE;
+    ret->outgoingeof = EOF_NO;
+    ret->incomingeof = FALSE;
+    ret->listener = 0;
+    ret->addr = addr;
+    START_STEP(ret->addr, ret->step);
+    ret->s = -1;
+    ret->oobinline = oobinline;
+    ret->nodelay = nodelay;
+    ret->keepalive = keepalive;
+    ret->privport = -1;
+    ret->port = -1;
+
+    err = 0;
+
+    if (err)
+        ret->error = strerror(err);
+
+    return (Socket) ret;
+}
+
 static void sk_tcp_close(Socket sock)
 {
     Actual_Socket s = (Actual_Socket) sock;

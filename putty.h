@@ -857,6 +857,10 @@ void cleanup_exit(int);
     X(STR, NONE, x11_display) \
     X(INT, NONE, x11_auth) \
     X(FILENAME, NONE, xauthfile) \
+    /* PKCS#11 forwarding */ \
+    X(INT, NONE, pkcs11_forward) \
+    X(STR, NONE, pkcs11_url) \
+    X(STR, NONE, pkcs11_socket) \
     /* port forwarding */ \
     X(INT, NONE, lport_acceptall) /* accept conns from hosts other than localhost */ \
     X(INT, NONE, rport_acceptall) /* same for remote forwarded ports (SSH-2 only) */ \

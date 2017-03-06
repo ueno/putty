@@ -18,6 +18,7 @@
 #include "sshgssc.h"
 #include "sshgss.h"
 #endif
+#include <p11-kit/uri.h>
 
 #ifndef FALSE
 #define FALSE 0
@@ -587,6 +588,9 @@ struct ssh_channel {
 	struct ssh_sharing_channel {
 	    void *ctx;
 	} sharing;
+	struct ssh_pkcs11_channel {
+	    struct PKCS11Connection *pconn;
+	} pkcs11;
     } u;
 };
 
@@ -777,6 +781,7 @@ struct ssh_tag {
     int v1_local_protoflags;
     int agentfwd_enabled;
     int X11_fwd_enabled;
+    int pkcs11_fwd_enabled;
     int remote_bugs;
     const struct ssh_cipher *cipher;
     void *v1_cipher_ctx;
@@ -853,6 +858,9 @@ struct ssh_tag {
     struct X11Display *x11disp;
     struct X11FakeAuth *x11auth;
     tree234 *x11authtree;
+
+    P11KitUri *pkcs11url;
+    char *pkcs11socket;
 
     int version;
     int conn_throttle_count;
@@ -8901,6 +8909,16 @@ static void ssh2_msg_channel_open(Ssh ssh, struct Packet *pktin)
             bufchain_init(&c->u.a.inbuffer);
             c->u.a.pending = NULL;
 	}
+    } else if (typelen == 33 &&
+	       !memcmp(type, "forwarded-streamlocal@openssh.com", 33)) {
+	if (!ssh->pkcs11_fwd_enabled)
+	    error = "PKCS#11 forwarding is not enabled";
+	else {
+            c->u.pkcs11.pconn = pkcs11_init(c);
+	    c->type = CHAN_PKCS11;
+
+            logevent("Opened PKCS#11 forward channel");
+	}
     } else {
 	error = "Unsupported channel type requested";
     }
@@ -9040,6 +9058,35 @@ static void ssh2_setup_x11(struct ssh_channel *c, struct Packet *pktin,
     }
 
     crFinishFreeV;
+}
+
+static void ssh_pkcs11_succfail(Ssh ssh, struct Packet *pktin, void *ctx)
+{
+    if (pktin->type == (ssh->version == 1 ? SSH1_SMSG_SUCCESS :
+			SSH2_MSG_REQUEST_SUCCESS)) {
+	logevent("PKCS11 forwarding enabled");
+	ssh->pkcs11_fwd_enabled = 1;
+    } else {
+	logevent("PKCS11 forwarding refused");
+    }
+}
+
+static void ssh2_setup_pkcs11(struct ssh_channel *c, struct Packet *pktin,
+                           void *ctx)
+{
+    Ssh ssh = c->ssh;
+    struct Packet *pktout;
+
+    logevent("Requesting PKCS#11 forwarding");
+    pktout = ssh2_pkt_init(SSH2_MSG_GLOBAL_REQUEST);
+    ssh2_pkt_addstring(pktout, "streamlocal-forward@openssh.com");
+    ssh2_pkt_addbool(pktout, 1);/* want reply */
+    ssh2_pkt_addstring(pktout, ssh->pkcs11socket);
+    ssh2_pkt_send(ssh, pktout);
+
+    ssh_queue_handler(ssh, SSH2_MSG_REQUEST_SUCCESS,
+		      SSH2_MSG_REQUEST_FAILURE,
+		      ssh_pkcs11_succfail, NULL);
 }
 
 static void ssh2_setup_agent(struct ssh_channel *c, struct Packet *pktin,
@@ -10816,6 +10863,24 @@ static void do_ssh2_authconn(Ssh ssh, const unsigned char *in, int inlen,
                 ssh->x11auth->disp = ssh->x11disp;
 
                 ssh2_setup_x11(ssh->mainchan, NULL, NULL);
+            }
+        }
+
+	/* Potentially enable PKCS11 forwarding. */
+	if (conf_get_int(ssh->conf, CONF_pkcs11_forward)) {
+	    ssh->pkcs11url = p11_kit_uri_new();
+	    if (p11_kit_uri_parse(conf_get_str(ssh->conf, CONF_pkcs11_url),
+				  P11_KIT_URI_FOR_TOKEN,
+				  ssh->pkcs11url) != P11_KIT_URI_OK) {
+		p11_kit_uri_free(ssh->pkcs11url);
+                /* FIXME: return an error message from x11_setup_display */
+                logevent("PKCS#11 forwarding not enabled: unable to"
+                         " parse PKCS#11 URI");
+            } else {
+		ssh->pkcs11socket =
+		    dupstr(conf_get_str(ssh->conf, CONF_pkcs11_socket));
+
+                ssh2_setup_pkcs11(ssh->mainchan, NULL, NULL);
             }
         }
 

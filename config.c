@@ -2544,6 +2544,23 @@ void setup_config_box(struct controlbox *b, int midsession,
 			      I(CONF_x11_auth),
 			      "MIT-Magic-Cookie-1", I(X11_MIT),
 			      "XDM-Authorization-1", I(X11_XDM), NULL);
+
+	    /*
+	     * The Connection/SSH/PKCS11 panel.
+	     */
+	    ctrl_settitle(b, "Connection/SSH/PKCS11",
+			  "Options controlling SSH PKCS#11 forwarding");
+
+	    s = ctrl_getset(b, "Connection/SSH/PKCS11", "pkcs11", "PKCS#11 forwarding");
+	    ctrl_checkbox(s, "Enable PKCS#11 forwarding", 'e',
+			  HELPCTX(ssh_tunnels_pkcs11),
+			  conf_checkbox_handler,I(CONF_pkcs11_forward));
+	    ctrl_editbox(s, "PKCS#11 URL", 'x', 50,
+			 HELPCTX(ssh_tunnels_pkcs11),
+			 conf_editbox_handler, I(CONF_pkcs11_url), I(1));
+	    ctrl_editbox(s, "Remote socket", 's', 50,
+			 HELPCTX(ssh_tunnels_pkcs11),
+			 conf_editbox_handler, I(CONF_pkcs11_socket), I(1));
 	}
 
 	/*

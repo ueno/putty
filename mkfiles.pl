@@ -1683,7 +1683,7 @@ if (defined $makefiles{'am'}) {
     print &splitline(join " ", "AM_CPPFLAGS", "=",
                      map {"-I\$(srcdir)/$_"} @srcdirs), "\n";
 
-    @amcflags = ("\$(COMPAT)", "\$(XFLAGS)", "\$(WARNINGOPTS)");
+    @amcflags = ("\$(PKCS11_CFLAGS)", "\$(COMPAT)", "\$(XFLAGS)", "\$(WARNINGOPTS)");
     print "if HAVE_GTK\n";
     print &splitline(join " ", "AM_CFLAGS", "=",
                      "\$(GTK_CFLAGS)", @amcflags), "\n";
@@ -1708,7 +1708,7 @@ if (defined $makefiles{'am'}) {
       print "if HAVE_GTK\n" if $type eq "X" || $type eq "XT";
       @progsources = ("${prog}_SOURCES", "=");
       %sourcefiles = ();
-      @ldadd = ();
+      @ldadd = ("\$(PKCS11_LIBS)");
       $objstr = &objects($p, "X", undef, undef);
       foreach $obj (split / /,$objstr) {
         if ($amspeciallibs{$obj}) {

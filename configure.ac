@@ -140,6 +140,8 @@ if test "$gtk" = "2" -o "$gtk" = "3"; then
   LIBS="$ac_save_LIBS"
 fi
 
+PKG_CHECK_MODULES([PKCS11], [p11-kit-1], , [:])
+
 AC_SEARCH_LIBS([socket], [xnet])
 
 AS_IF([test "x$with_gssapi" != xno],
