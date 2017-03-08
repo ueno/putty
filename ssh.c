@@ -5333,14 +5333,19 @@ static void ssh_setup_portfwd(Ssh ssh, Conf *conf)
 	    saddr = NULL;
 	    sports = kp;
 	}
-	sport = atoi(sports);
+	sport = 0;
 	sserv = 0;
-	if (sport == 0) {
-	    sserv = 1;
-	    sport = net_service_lookup(sports);
-	    if (!sport) {
-		logeventf(ssh, "Service lookup failed for source"
-			  " port \"%s\"", sports);
+	if (type == 'R' && *sports == '/') {
+	    saddr = dupstr(sports);
+	} else {
+	    sport = atoi(sports);
+	    if (sport == 0) {
+		sserv = 1;
+		sport = net_service_lookup(sports);
+		if (!sport) {
+		    logeventf(ssh, "Service lookup failed for source"
+			      " port \"%s\"", sports);
+		}
 	    }
 	}
 
@@ -5371,7 +5376,7 @@ static void ssh_setup_portfwd(Ssh ssh, Conf *conf)
 	    }
 	}
 
-	if (sport && dport) {
+	if ((sport && dport) || (saddr && *saddr == '/')) {
 	    /* Set up a description of the source port. */
 	    struct ssh_portfwd *pfrec, *epfrec;
 
@@ -5458,6 +5463,13 @@ static void ssh_setup_portfwd(Ssh ssh, Conf *conf)
 		     * so that any connections the server tries
 		     * to make on it are rejected.
 		     */
+		} else if (epf->saddr && *epf->saddr == '/') {
+		    pktout = ssh2_pkt_init(SSH2_MSG_GLOBAL_REQUEST);
+		    ssh2_pkt_addstring(pktout,
+				       "cancel-streamlocal-forward@openssh.com");
+		    ssh2_pkt_addbool(pktout, 0);/* _don't_ want reply */
+		    ssh2_pkt_addstring(pktout, epf->saddr);
+		    ssh2_pkt_send(ssh, pktout);
 		} else {
 		    pktout = ssh2_pkt_init(SSH2_MSG_GLOBAL_REQUEST);
 		    ssh2_pkt_addstring(pktout, "cancel-tcpip-forward");
@@ -5583,6 +5595,18 @@ static void ssh_setup_portfwd(Ssh ssh, Conf *conf)
 				    PKT_END);
 			ssh_queue_handler(ssh, SSH1_SMSG_SUCCESS,
 					  SSH1_SMSG_FAILURE,
+					  ssh_rportfwd_succfail, pf);
+		    } else if (epf->saddr && *epf->saddr == '/') {
+			struct Packet *pktout;
+			pktout = ssh2_pkt_init(SSH2_MSG_GLOBAL_REQUEST);
+			ssh2_pkt_addstring(pktout,
+					   "streamlocal-forward@openssh.com");
+			ssh2_pkt_addbool(pktout, 1);/* want reply */
+			ssh2_pkt_addstring(pktout, epf->saddr);
+			ssh2_pkt_send(ssh, pktout);
+
+			ssh_queue_handler(ssh, SSH2_MSG_REQUEST_SUCCESS,
+					  SSH2_MSG_REQUEST_FAILURE,
 					  ssh_rportfwd_succfail, pf);
 		    } else {
 			struct Packet *pktout;
@@ -8882,6 +8906,50 @@ static void ssh2_msg_channel_open(Ssh ssh, struct Packet *pktin)
             err = pfd_connect(&c->u.pfd.pf, realpf->dhost, realpf->dport,
                               c, ssh->conf, realpf->pfrec->addressfamily);
 	    logeventf(ssh, "Attempting to forward remote port to "
+		      "%s:%d", realpf->dhost, realpf->dport);
+	    if (err != NULL) {
+		logeventf(ssh, "Port open failed: %s", err);
+                sfree(err);
+		error = "Port open failed";
+	    } else {
+		logevent("Forwarded port opened successfully");
+		c->type = CHAN_SOCKDATA;
+	    }
+	}
+    } else if (typelen == 33 &&
+	       !memcmp(type, "forwarded-streamlocal@openssh.com", 33)) {
+	struct ssh_rportfwd pf, *realpf;
+	char *shost;
+	int shostlen;
+	ssh_pkt_getstring(pktin, &shost, &shostlen);/* skip address */
+        pf.shost = dupprintf("%.*s", shostlen, NULLTOEMPTY(shost));
+	pf.sport = 0;
+	realpf = find234(ssh->rportfwds, &pf, NULL);
+	logeventf(ssh, "Received remote socket %s open request",
+		  pf.shost);
+        sfree(pf.shost);
+
+	if (realpf == NULL) {
+	    error = "Remote socket is not recognised";
+	} else {
+            char *err;
+
+            if (realpf->share_ctx) {
+                /*
+                 * This port forwarding is on behalf of a
+                 * connection-sharing downstream, so abandon our own
+                 * channel-open procedure and just pass the message on
+                 * to sshshare.c.
+                 */
+                share_got_pkt_from_server(realpf->share_ctx, pktin->type,
+                                          pktin->body, pktin->length);
+                sfree(c);
+                return;
+            }
+
+            err = pfd_connect(&c->u.pfd.pf, realpf->dhost, realpf->dport,
+                              c, ssh->conf, realpf->pfrec->addressfamily);
+	    logeventf(ssh, "Attempting to forward remote socket to "
 		      "%s:%d", realpf->dhost, realpf->dport);
 	    if (err != NULL) {
 		logeventf(ssh, "Port open failed: %s", err);
