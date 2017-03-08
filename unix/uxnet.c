@@ -388,6 +388,11 @@ int sk_hostname_is_local(const char *name)
 	   !strncmp(name, "127.", 4);
 }
 
+int sk_hostname_is_special_local(const char *name)
+{
+    return *name == '/';
+}
+
 #define ipv4_is_loopback(addr) \
     (((addr).s_addr & htonl(0xff000000)) == htonl(0x7f000000))
 

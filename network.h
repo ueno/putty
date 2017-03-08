@@ -116,6 +116,7 @@ Socket platform_new_connection(SockAddr addr, const char *hostname,
 			       int port, int privport,
 			       int oobinline, int nodelay, int keepalive,
 			       Plug plug, Conf *conf);
+SockAddr unix_sock_addr(const char *path);
 
 /* socket functions */
 
@@ -127,6 +128,7 @@ SockAddr sk_nonamelookup(const char *host);
 void sk_getaddr(SockAddr addr, char *buf, int buflen);
 int sk_addr_needs_port(SockAddr addr);
 int sk_hostname_is_local(const char *name);
+int sk_hostname_is_special_local(const char *name);
 int sk_address_is_local(SockAddr addr);
 int sk_address_is_special_local(SockAddr addr);
 int sk_addrtype(SockAddr addr);

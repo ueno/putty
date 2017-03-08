@@ -437,14 +437,18 @@ char *pfd_connect(struct PortForwarding **pf_ret, char *hostname,int port,
 
     SockAddr addr;
     const char *err;
-    char *dummy_realhost;
+    char *dummy_realhost = NULL;
     struct PortForwarding *pf;
 
     /*
      * Try to find host.
      */
-    addr = name_lookup(hostname, port, &dummy_realhost, conf, addressfamily,
-                       NULL, NULL);
+    if (sk_hostname_is_special_local(hostname) && !port) {
+	addr = unix_sock_addr(hostname);
+    } else {
+	addr = name_lookup(hostname, port, &dummy_realhost, conf, addressfamily,
+			   NULL, NULL);
+    }
     if ((err = sk_addr_error(addr)) != NULL) {
         char *err_ret = dupstr(err);
 	sk_addr_free(addr);

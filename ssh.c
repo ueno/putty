@@ -5308,7 +5308,7 @@ static void ssh_setup_portfwd(Ssh ssh, Conf *conf)
 	char *kp, *kp2, *vp, *vp2;
 	char address_family, type;
 	int sport,dport,sserv,dserv;
-	char *sports, *dports, *saddr, *host;
+	char *sports, *dports, *saddr, *daddr, *host;
 
 	kp = key;
 
@@ -5336,6 +5336,7 @@ static void ssh_setup_portfwd(Ssh ssh, Conf *conf)
 	sport = 0;
 	sserv = 0;
 	if (type == 'R' && *sports == '/') {
+	    /* remote forwarding with a Unix-socket on the remote side */
 	    saddr = dupstr(sports);
 	} else {
 	    sport = atoi(sports);
@@ -5364,19 +5365,29 @@ static void ssh_setup_portfwd(Ssh ssh, Conf *conf)
 	    if (*vp2)
 		vp2++;
 	    dports = vp2;
-	    dport = atoi(dports);
+	    dport = 0;
 	    dserv = 0;
-	    if (dport == 0) {
-		dserv = 1;
-		dport = net_service_lookup(dports);
-		if (!dport) {
-		    logeventf(ssh, "Service lookup failed for destination"
-			      " port \"%s\"", dports);
+	    if (type == 'R' &&
+		sk_hostname_is_special_local(dports) &&
+		sk_hostname_is_local(host)) {
+		daddr = dupstr(dports);
+		sfree(host);
+	    } else {
+		daddr = host;
+		dport = atoi(dports);
+		if (dport == 0) {
+		    dserv = 1;
+		    dport = net_service_lookup(dports);
+		    if (!dport) {
+			logeventf(ssh, "Service lookup failed for destination"
+				  " port \"%s\"", dports);
+		    }
 		}
 	    }
 	}
 
-	if ((sport && dport) || (saddr && *saddr == '/')) {
+	if ((sport || (saddr && *saddr == '/')) &&
+	    (dport || (daddr && sk_hostname_is_special_local(daddr)))) {
 	    /* Set up a description of the source port. */
 	    struct ssh_portfwd *pfrec, *epfrec;
 
@@ -5385,7 +5396,7 @@ static void ssh_setup_portfwd(Ssh ssh, Conf *conf)
 	    pfrec->saddr = saddr;
 	    pfrec->sserv = sserv ? dupstr(sports) : NULL;
 	    pfrec->sport = sport;
-	    pfrec->daddr = host;
+	    pfrec->daddr = daddr;
 	    pfrec->dserv = dserv ? dupstr(dports) : NULL;
 	    pfrec->dport = dport;
 	    pfrec->local = NULL;
@@ -5415,7 +5426,7 @@ static void ssh_setup_portfwd(Ssh ssh, Conf *conf)
 	    }
 	} else {
 	    sfree(saddr);
-	    sfree(host);
+	    sfree(daddr);
 	}
     }
 

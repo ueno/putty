@@ -669,6 +669,12 @@ SockAddr sk_namedpipe_addr(const char *pipename)
     return ret;
 }
 
+SockAddr unix_sock_addr(const char *addr)
+{
+    assert(sk_hostname_is_special_local(addr));
+    return sk_namedpipe_addr(addr);
+}
+
 int sk_nextaddr(SockAddr addr, SockAddrStep *step)
 {
 #ifndef NO_IPV6
@@ -761,6 +767,11 @@ int sk_hostname_is_local(const char *name)
     return !strcmp(name, "localhost") ||
 	   !strcmp(name, "::1") ||
 	   !strncmp(name, "127.", 4);
+}
+
+int sk_hostname_is_special_local(const char *name)
+{
+    return !strncmp(name, "\\\\.\\pipe\\", 9);
 }
 
 static INTERFACE_INFO local_interfaces[16];
@@ -1177,6 +1188,8 @@ static DWORD try_connect(Actual_Socket sock)
     return err;
 }
 
+Socket new_named_pipe_client(const char *pipename, Plug plug);
+
 Socket sk_new(SockAddr addr, int port, int privport, int oobinline,
 	      int nodelay, int keepalive, Plug plug)
 {
@@ -1194,6 +1207,9 @@ Socket sk_new(SockAddr addr, int port, int privport, int oobinline,
 
     Actual_Socket ret;
     DWORD err;
+
+    if (addr->namedpipe)
+	return new_named_pipe_client(addr->hostname, plug);
 
     /*
      * Create Socket structure.
